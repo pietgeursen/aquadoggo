@@ -10,8 +10,8 @@ use http::{Request, StatusCode};
 use hyper::{Body, Server};
 use p2panda_rs::hash::Hash;
 use rand::Rng;
-use sqlx::any::Any;
 use sqlx::migrate::MigrateDatabase;
+use sqlx::Sqlite;
 use tower::make::Shared;
 use tower_service::Service;
 
@@ -141,8 +141,8 @@ pub async fn initialize_db() -> Pool {
 
 // Delete test database
 pub async fn drop_database() {
-    if Any::database_exists(DB_URL).await.unwrap() {
-        Any::drop_database(DB_URL).await.unwrap();
+    if Sqlite::database_exists(DB_URL).await.unwrap() {
+        Sqlite::drop_database(DB_URL).await.unwrap();
     }
 }
 

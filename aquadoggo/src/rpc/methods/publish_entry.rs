@@ -162,7 +162,7 @@ pub async fn publish_entry(
         .await?
         .expect("Database does not contain any entries");
     let entry_hash_skiplink = super::entry_args::determine_skiplink(pool, &entry_latest).await?;
-    let next_seq_num = entry_latest.seq_num.next().unwrap();
+    let next_seq_num = entry_latest.seq_num.0.next().unwrap();
 
     Ok(PublishEntryResponse {
         entry_hash_backlink: Some(params.entry_encoded.hash()),

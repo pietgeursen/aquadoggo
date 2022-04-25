@@ -51,9 +51,15 @@ pub async fn get_entry_args(
             let entry_hash_skiplink = determine_skiplink(pool.clone(), &entry_backlink).await?;
 
             Ok(EntryArgsResponse {
-                entry_hash_backlink: Some(entry_backlink.entry_hash),
+                entry_hash_backlink: Some(entry_backlink.entry_hash.0),
                 entry_hash_skiplink,
-                seq_num: entry_backlink.seq_num.next().unwrap().as_u64().to_string(),
+                seq_num: entry_backlink
+                    .seq_num
+                    .0
+                    .next()
+                    .unwrap()
+                    .as_u64()
+                    .to_string(),
                 log_id: log_id.as_u64().to_string(),
             })
         }
@@ -70,7 +76,7 @@ pub async fn get_entry_args(
 /// Determine skiplink entry hash ("lipmaa"-link) for entry in this log, return `None` when no
 /// skiplink is required for the next entry.
 pub async fn determine_skiplink(pool: Pool, entry: &Entry) -> Result<Option<Hash>> {
-    let next_seq_num = entry.seq_num.clone().next().unwrap();
+    let next_seq_num = entry.seq_num.0.clone().next().unwrap();
 
     // Unwrap as we know that an skiplink exists as soon as previous entry is given
     let skiplink_seq_num = next_seq_num.skiplink_seq_num().unwrap();
@@ -78,10 +84,10 @@ pub async fn determine_skiplink(pool: Pool, entry: &Entry) -> Result<Option<Hash
     // Check if skiplink is required and return hash if so
     let entry_skiplink_hash = if is_lipmaa_required(next_seq_num.as_u64()) {
         let skiplink_entry =
-            Entry::at_seq_num(&pool, &entry.author, &entry.log_id, &skiplink_seq_num)
+            Entry::at_seq_num(&pool, &entry.author.0, &entry.log_id.0, &skiplink_seq_num)
                 .await?
                 .unwrap();
-        Some(skiplink_entry.entry_hash)
+        Some(skiplink_entry.entry_hash.0)
     } else {
         None
     };

@@ -1,29 +1,31 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 use anyhow::{Error, Result};
-use sqlx::any::{Any, AnyPool, AnyPoolOptions};
 use sqlx::migrate;
 use sqlx::migrate::MigrateDatabase;
+use sqlx::sqlite::{SqlitePool, SqlitePoolOptions};
+use sqlx::Sqlite;
 
+pub mod custom_decode;
 pub mod models;
 
-/// Re-export of generic connection pool type.
-pub type Pool = AnyPool;
+pub type Pool = SqlitePool;
 
 /// Create database when not existing.
 pub async fn create_database(url: &str) -> Result<()> {
-    if !Any::database_exists(url).await? {
-        Any::create_database(url).await?;
+    if !Sqlite::database_exists(url).await? {
+        Sqlite::create_database(url).await?;
     }
 
-    Any::drop_database(url);
+    Sqlite::drop_database(url);
 
     Ok(())
 }
 
-/// Create a database agnostic connection pool.
+/// Create a database connection pool for postgres server.
+#[cfg(not(any(feature = "mysql", feature = "sqlite")))]
 pub async fn connection_pool(url: &str, max_connections: u32) -> Result<Pool, Error> {
-    let pool: Pool = AnyPoolOptions::new()
+    let pool: Pool = SqlitePoolOptions::new()
         .max_connections(max_connections)
         .connect(url)
         .await?;

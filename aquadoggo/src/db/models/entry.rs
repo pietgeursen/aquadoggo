@@ -10,43 +10,9 @@ use p2panda_rs::operation::OperationEncoded;
 use serde::Serialize;
 use sqlx::{query, query_as, FromRow};
 
+use crate::db::custom_decode::{DoggoAuthor, DoggoHash, DoggoLogId, DoggoSeqNum};
 use crate::db::Pool;
 use crate::errors::Result;
-
-/// Struct representing the actual SQL row of `Entry`.
-///
-/// We store the u64 integer values of `log_id` and `seq_num` as strings since not all database
-/// backend support large numbers.
-#[derive(FromRow, Debug, Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct EntryRow {
-    /// Public key of the author.
-    pub author: String,
-
-    /// Actual Bamboo entry data.
-    pub entry_bytes: String,
-
-    /// Hash of Bamboo entry data.
-    pub entry_hash: String,
-
-    /// Used log for this entry.
-    pub log_id: String,
-
-    /// Payload of entry, can be deleted.
-    pub payload_bytes: Option<String>,
-
-    /// Hash of payload data.
-    pub payload_hash: String,
-
-    /// Sequence number of this entry.
-    pub seq_num: String,
-}
-
-impl AsRef<Self> for EntryRow {
-    fn as_ref(&self) -> &Self {
-        self
-    }
-}
 
 /// Entry of an append-only log based on Bamboo specification. It describes the actual data in the
 /// p2p network and is shared between nodes.
@@ -59,29 +25,38 @@ impl AsRef<Self> for EntryRow {
 /// payload can be deleted without affecting the data structures integrity. All other fields like
 /// `author`, `payload_hash` etc. can be retrieved from `entry_bytes` but are separately stored in
 /// the database for faster querying.
-#[derive(Debug, Serialize)]
+///
+/// We store the u64 integer values of `log_id` and `seq_num` as strings since not all database
+/// backend support large numbers.
+#[derive(FromRow, Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Entry {
     /// Public key of the author.
-    pub author: Author,
+    pub author: DoggoAuthor,
 
     /// Actual Bamboo entry data.
     pub entry_bytes: String,
 
     /// Hash of Bamboo entry data.
-    pub entry_hash: Hash,
+    pub entry_hash: DoggoHash,
 
     /// Used log for this entry.
-    pub log_id: LogId,
+    pub log_id: DoggoLogId,
 
     /// Payload of entry, can be deleted.
     pub payload_bytes: Option<String>,
 
     /// Hash of payload data.
-    pub payload_hash: Hash,
+    pub payload_hash: DoggoHash,
 
     /// Sequence number of this entry.
-    pub seq_num: SeqNum,
+    pub seq_num: DoggoSeqNum,
+}
+
+impl AsRef<Self> for Entry {
+    fn as_ref(&self) -> &Self {
+        self
+    }
 }
 
 impl Entry {
@@ -127,7 +102,7 @@ impl Entry {
 
     /// Returns the latest Bamboo entry of an author's log.
     pub async fn latest(pool: &Pool, author: &Author, log_id: &LogId) -> Result<Option<Entry>> {
-        let row = query_as::<_, EntryRow>(
+        let entry = query_as::<_, Entry>(
             "
             SELECT
                 author,
@@ -153,9 +128,6 @@ impl Entry {
         .fetch_optional(pool)
         .await?;
 
-        // Convert internal `EntryRow` to `Entry` with correct types
-        let entry = row.map(|entry| Self::try_from(&entry).expect("Corrupt values found in entry"));
-
         Ok(entry)
     }
 
@@ -165,8 +137,8 @@ impl Entry {
     // databases. Here we still return `EntryRow` for the `queryEntries` RPC response (we want
     // `seq_num` and `log_id` to be strings). This should be changed as soon as we move over using
     // a GraphQL API.
-    pub async fn by_schema(pool: &Pool, schema: &Hash) -> Result<Vec<EntryRow>> {
-        let entries = query_as::<_, EntryRow>(
+    pub async fn by_schema(pool: &Pool, schema: &Hash) -> Result<Vec<Entry>> {
+        let entries = query_as::<_, Entry>(
             "
             SELECT
                 entries.author,
@@ -199,7 +171,7 @@ impl Entry {
         log_id: &LogId,
         seq_num: &SeqNum,
     ) -> Result<Option<Entry>> {
-        let row = query_as::<_, EntryRow>(
+        let entry = query_as::<_, Entry>(
             "
             SELECT
                 author,
@@ -223,27 +195,7 @@ impl Entry {
         .fetch_optional(pool)
         .await?;
 
-        // Convert internal `EntryRow` to `Entry` with correct types
-        let entry = row.map(|entry| Self::try_from(&entry).expect("Corrupt values found in entry"));
-
         Ok(entry)
-    }
-}
-
-/// Convert SQL row representation `EntryRow` to typed `Entry` one.
-impl TryFrom<&EntryRow> for Entry {
-    type Error = crate::errors::Error;
-
-    fn try_from(row: &EntryRow) -> std::result::Result<Self, Self::Error> {
-        Ok(Self {
-            author: Author::try_from(row.author.as_ref())?,
-            entry_bytes: row.entry_bytes.clone(),
-            entry_hash: row.entry_hash.parse()?,
-            log_id: row.log_id.parse()?,
-            payload_bytes: row.payload_bytes.clone(),
-            payload_hash: row.payload_hash.parse()?,
-            seq_num: row.seq_num.parse()?,
-        })
     }
 }
 
